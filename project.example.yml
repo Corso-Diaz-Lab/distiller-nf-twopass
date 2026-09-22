@@ -1,4 +1,17 @@
 #########################################
+# distiller-nf (two-pass) — example project.yml
+#
+# Minimal, generic template showing the parameters relevant to the two-pass
+# merge/dedup restructuring. Copy this file, rename it, and edit the paths
+# and library structure for your own data.
+#
+# The ONLY additions relative to upstream distiller-nf are:
+#   - `n_sort_groups`  (controls the parallel sort/dedup partition count)
+#   - `--walks-policy 5unique` in parse.parsing_options (rescues junction reads)
+# Everything else is standard distiller-nf.
+#########################################
+
+#########################################
 # THIS IS A TYPICAL project.yml TEMPLATE
 # most of the settings present here
 # are GO for mapping production data
@@ -12,7 +25,6 @@
 # uncommented parameter, otherwise it
 # will not get properly parsed.
 #########################################
-
 
 
 #######################################
@@ -78,6 +90,12 @@ input:
 #            - your_library_name_2
 #            - your_library_name_3
             - your_library_online
+            
+    # Reference genome (nests INSIDE input:, not top-level).
+    genome:
+        assembly_name: 'mm39'
+        bwa_index_wildcard_path: '/path/to/bwa_index/genome.fa.*'
+        chrom_sizes_path: '/path/to/genome.chrom.sizes'
 
 
     # Truncate input fastqs to a small number of reads (e.g. 10000) for
@@ -103,75 +121,27 @@ do_fastqc: true
 
 # Control how reads are mapped to the reference genomes.
 map:
-    # If 'chunksize' is non-zero, each input file gets split into multiple chunks,
-    # each mapped separately. Useful for mapping on clusters with many
-    # relatively weak nodes.
-    # The optimal chunk size is defined by the balance between mapping and merging.
-    # Smaller chunks (~30M) are better for clusters with many weak nodes,
-    # however, having >~10 chunks per run slow down merging.
-    chunksize: 1000000
-
-    # Specify extra BWA mapping options.
-    mapping_options: ''
-
-    # Specify fastp trim options.
-    #i.e. parameters
-    #--detect_adapter_for_pe -q 15
-    trim_options: ''
-
-    # A more technical option, use a custom script to split fastq files from SRA 
-    # into two files, one per read side. By default it is true, which is
-    # faster (because we can use multi-threaded compression), but less
-    # stable. Set to false if you download files from SRA and bwa complains
-    # about unpaired reads.
+    # Split each input into chunks for parallel mapping. ~30M reads/chunk is
+    # a good default; too many chunks per run slows merging.
+    chunksize: 30000000
+    # NOTE: -SP is hardcoded into the pipeline's bwa mem call. Do not add it
+    # here. This field is for options ON TOP OF what the pipeline sets.
+    mapping_options: '-v 3'
+    trim_options: '-q 20 --json /dev/null'
     use_custom_split: true
-
-# Control how read alignments are converted ('parsed') into Hi-C pairs.
+ 
 parse:
-    # If 'make_pairsam' is True, parsed Hi-C pairs will store complete
-    # alignment records in the SAM format (the resulting hybrid between the
-    # .pairs and .sam formats is called '.pairsam'). Such files can be useful for
-    # thorough investigation of Hi-C data. Downstream of parsing, pairsams
-    # are split into .pairs and .bam, and .bam alignments are tagged with
-    # Hi-C related information. 'make_pairsam' roughly doubles the storage
-    # and I/O requirements and should be used only when absolutely needed.
-    # NOTE: when 'make_pairsam' is False, the initial output of parsing is still
-    # called '.pairsam' despite missing SAM alignments, for technical reasons.
-    make_pairsam: False
-
-    # When 'make_pairsam' is True, enabling 'drop_seq' erases sequences and
-    # Phred scores from the SAM alignments in .pairsam and .bam output files.
-    # Enable to make lightweight .pairsam/.bam output.
-    # NOTE: when 'make_pairsam' is False, 'drop_seq' is ignored.
+    make_pairsam: True
     drop_seq: False
-
-    # Enable 'drop_readid' to drop readID from .pairs files to create
-    # lightweight .pairs files
-    # NOTE: does not affect alignment records in the .pairsam files and
-    # subsequently .bam files after .apirsam splitting.
-    drop_readid: True
-
-    # When 'keep_unparsed_bams' is True, distiller preserves the _immediate_
-    # output of bwa in a .bam format. Could be used as a faster alternative
-    # to 'make_pairsam' when alignments are needed, but tagging them with Hi-C
-    # related information is not necessary.
-    keep_unparsed_bams: False
-
-    # Pass extra options to pairtools parse, on top of the ones specified by
-    # flags 'make_pairsam', 'drop_readid', 'drop_seq'. The default value
-    # enables storing MAPQ scores in the .pairsam/.pairs output, which are
-    # used later for filtering/binning. The default walks-policy is 'mask'
-    # which masks complex walks in long reads.
-    parsing_options: '--add-columns mapq --walks-policy mask'
-
-# Control how PCR/optical duplicates are detected in the data.
+    drop_readid: False
+    keep_unparsed_bams: True
+    # --walks-policy 5unique rescues junction-spanning read pairs that the
+    # upstream `mask` default would discard (~25% loss on MboI data).
+    parsing_options: '--add-columns mapq --walks-policy 5unique'
+ 
 dedup:
-    # PCR/optical duplicates are detected as Hi-C pairs with matching locations
-    # on both sides. 'max_mismatch_bp' controls the maximal allowed mismatch in
-    # mapped locations on either side for two pairs to be still considered as
-    # duplicates.
-    max_mismatch_bp: 1
-
+    max_mismatch_bp: 3
+    
 # Control how Hi-C pairs are binned into contact maps, stored in .cool files.
 bin:
     # Specify which resolutions should be included in the multi-resolution .cool file.
@@ -214,17 +184,45 @@ bin:
 #    # Only the stats that report uniquely mapped reads passed through the filters should be directly interpreted.
 #    use_filters: True
 
-########################################
-# folder structure for storing results
-########################################
+#########################################
+# Two-pass parameter
+#########################################
+# Number of parallel sort/dedup groups. The mapped chunks are partitioned
+# into this many groups; each is sorted and deduplicated in parallel
+# (sort_group + dedup_group) before a single final cross-group dedup
+# (merge_dedup_final). Tune so each group is a few hundred GB or less —
+# deeper libraries benefit from more groups.
+n_sort_groups: 10
+ 
+bin:
+    resolutions:
+        - 1000000
+        - 500000
+        - 250000
+        - 100000
+        - 50000
+        - 25000
+        - 10000
+        - 5000
+        - 1000
+    balance: true
+    balance_options: '--tol 0.05'
+    filters:
+        no_filter: ''
+        mapq_30: '(mapq1>=30) and (mapq2>=30)'
+
+#########################################
+# Output directory structure
+#########################################
+# Use ABSOLUTE paths. Relative paths resolve against the launch directory,
+# which can fill a quota-limited filesystem. On a cluster, point these at
+# large scratch storage.
 output:
     dirs:
-        processed_fastqs: 'results/processed_fastqs/'
-        mapped_parsed_sorted_chunks: 'results/mapped_parsed_sorted_chunks'
-        fastqc: 'results/fastqc/'
-        pairs_library: 'results/pairs_library'
-        coolers_library: 'results/coolers_library/'
-        coolers_library_group: 'results/coolers_library_group/'
-        stats_library: 'results/stats_library/'
-        stats_library_group: 'results/stats_library_group/'
-        multiqc: 'results/multiqc/'
+        processed_fastqs: '/path/to/results/processed_fastqs/'
+        mapped_parsed_sorted_chunks: '/path/to/results/mapped_parsed_sorted_chunks'
+        fastqc: '/path/to/results/fastqc/'
+        pairs_library: '/path/to/results/pairs_library'
+        coolers_library: '/path/to/results/coolers_library/'
+        coolers_library_group: '/path/to/results/coolers_library_group/'
+        stats_library_group: '/path/to/results/stats_library_group/'

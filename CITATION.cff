@@ -1,0 +1,42 @@
+cff-version: 1.2.0
+message: >-
+  If you use this software, please cite both this repository and the
+  original distiller-nf pipeline it is derived from.
+title: "distiller-nf (two-pass merge/dedup restructuring)"
+abstract: >-
+  A derivative of the open2c/distiller-nf Hi-C mapping pipeline that
+  restructures the monolithic merge/deduplication stage into a parallel
+  split-apply-combine design (sort_group + dedup_group + merge_dedup_final),
+  enabling completion on very deep Hi-C libraries where the original
+  single-process stage does not finish within cluster walltime limits.
+  Includes fixes for a local_truncate variable-name mismatch and a
+  walks-policy default that discarded junction reads.
+type: software
+authors:
+  - family-names: Singh Kakan
+    given-names: Shruti
+    email: singhkak@stanford.edu
+    affiliation: Stanford University
+    family-names: Corso Diaz
+    given-names: Ximena
+    email: ximenac@stanford.edu
+    affiliation: Stanford University
+license: MIT
+repository-code: "https://github.com/Corso-Diaz-Lab/distiller-nf-twopass"
+version: "1.0.0"
+date-released: "2026-09-21"
+keywords:
+  - Hi-C
+  - deduplication
+  - Nextflow
+  - pairtools
+  - bioinformatics
+  - split-apply-combine
+references:
+  - type: software
+    title: distiller-nf
+    authors:
+      - name: "Open2C"
+    repository-code: "https://github.com/open2c/distiller-nf"
+    license: MIT
+    notes: "Original pipeline this work is derived from."

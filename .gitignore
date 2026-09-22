@@ -17,3 +17,64 @@ test/genome/*
 pipeline_info/*
 work/*
 results/*
+
+# Nextflow
+.nextflow/
+.nextflow.log*
+timeline*.html
+report*.html
+trace*.txt
+dag*.html
+dag*.dot
+#
+# # Pipeline outputs / large data
+output/
+*.pairs.gz
+*.pairsam.gz
+*.bam
+*.cool
+*.mcool
+*.fastq
+*.fastq.gz
+*.fq.gz
+*.sra
+*.tmp
+*.orig
+*.bak
+#
+# # Genome indices
+*.bwt
+*.pac
+*.ann
+*.amb
+*.sa
+*.fa
+*.fasta
+*.fa.gz
+#
+# # Containers
+*.sif
+*.img
+#
+# # Scratch / temp
+distiller_tmp/
+tmp/
+pipeline_info_full_twopass/
+pipeline_info_test3_restruct/
+pipeline_info_twopass_test/
+pipeline_info_twopass_test3/
+pipeline_info_twopass_test12/
+# Test-run artifacts
+deduped_groups/ 
+sorted_groups/ 
+#
+# # Cluster logs
+slurm-*.out
+logs/
+*.err
+#
+# # Editor / OS
+.DS_Store
+*.swp
+.idea/
+.vscode/

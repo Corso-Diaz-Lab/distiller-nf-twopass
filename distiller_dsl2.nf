@@ -27,7 +27,10 @@ include { DOWNLOAD_TRUNCATE as download_truncate_chunk_fastqs } from './modules/
 include { LOCAL_TRUNCATE as local_truncate_chunk_fastqs } from './modules/local/local_truncate' addParams( options: [:] )
 include { FASTQC as fastqc } from './modules/local/fastqc' addParams( options: [:] )
 include { MAP_PARSE_SORT as map_parse_sort_chunks } from './modules/local/map_parse_sort' addParams( options: [:] )
+include { DEDUP_GROUP as dedup_group } from './modules/local/dedup_group' addParams( options: [:] )
 include { MERGE_DEDUP_SPLITBAM as merge_dedup_splitbam } from './modules/local/merge_dedup_splitbam' addParams( options: [:] )
+include { SORT_GROUP as sort_group } from './modules/local/sort_group' addParams( options: [:] )
+include { MERGE_DEDUP_FINAL as merge_dedup_final } from './modules/local/merge_dedup_final' addParams( options: [:] )
 include { BIN_ZOOM as bin_zoom_library_pairs } from './modules/local/bin_zoom_library_pairs' addParams( options: [:] )
 include { MERGE_ZOOM as merge_zoom_library_group_coolers } from './modules/local/merge_zoom_library_group_coolers' addParams( options: [:] )
 include { MERGE_STATS as merge_stats_libraries_into_groups } from './modules/local/merge_stats_libraries_into_groups' addParams( options: [:] )
@@ -101,11 +104,32 @@ workflow DISTILLER {
         }
     BAM = map_parse_sort_chunks( INPUT_MAPPING ).output
 
-    /* Merge .pairsams into libraries */
-    INPUT_DEDUP = BAM
-            .map{lib, run, chunk, pairsam, bam -> [lib, pairsam]}
+    /* Merge .pairsams into libraries — PARALLEL SORT then SINGLE dedup */
+    N_GROUPS = (params.getOrDefault('n_sort_groups', 10) as int)
+
+// 1. collect all of a library's chunk pairsams, then partition into
+//    N_GROUPS sub-groups. collate() splits the list into chunks of size
+//    ceil(total/N_GROUPS). withIndex gives each sub-group a stable id.
+    SORT_GROUP_INPUT = BAM
+            .map{ lib, run, chunk, pairsam, bam -> [lib, pairsam] }
             .groupTuple()
-    PAIRS = merge_dedup_splitbam( INPUT_DEDUP )
+            .flatMap { lib, pairsams ->
+                def n = Math.max(1, N_GROUPS)
+                def sz = (Math.ceil((pairsams.size() as double) / n) as int)
+                pairsams.collate(sz).withIndex().collect { grp, i ->
+                    tuple(lib, i, grp)
+                }
+            }
+
+// 2. parallel per-group merge/sort (many concurrent jobs)
+    SORTED_GROUPS = sort_group( SORT_GROUP_INPUT ).output 
+// (lib, group_id, sorted)
+    DEDUPED_GROUPS = dedup_group( SORTED_GROUPS ).output 
+// (lib, deduped)
+
+// 3. regroup a library's sorted-group outputs, single global dedup
+    FINAL_DEDUP_INPUT = DEDUPED_GROUPS.groupTuple() // (lib, [deduped...])
+    PAIRS = merge_dedup_final( FINAL_DEDUP_INPUT )
 
 //    /* Produce stats with filters: */
 //    if (params.get('stats', [:]).get('use_filters', 'false').toBoolean()) {

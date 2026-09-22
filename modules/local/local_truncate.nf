@@ -19,7 +19,7 @@ process LOCAL_TRUNCATE {
 //        }
 
     input:
-    tuple val(library), val(run), val(query1), val(query2)
+    tuple val(library), val(run), val(fastq1), val(fastq2)
 
     output:
     tuple val(library), val(run),

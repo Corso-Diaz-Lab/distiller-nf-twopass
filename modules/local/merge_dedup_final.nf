@@ -1,28 +1,35 @@
-// Import generic module functions
+// modules/local/merge_dedup_final.nf
+// Process B of the split-apply-combine restructure.
+// Receives the pre-sorted group pairsams (from SORT_GROUP) for one library,
+// merges them (order-preserving, cheap) and runs the SINGLE global
+// dedup+split. Output contract is IDENTICAL to the original
+// merge_dedup_splitbam so all downstream stages consume it unchanged.
+//
+// The dedup/split logic below is copied VERBATIM from merge_dedup_splitbam.nf
+// (the correct, output-producing part). Only the input is now group-sorted
+// pairsams rather than raw chunks. Because pairtools merge of sorted inputs is
+// order-preserving, the single dedup here sees the same globally-sorted stream
+// the monolithic version did -> identical dedup result (this is what the
+// bundled-test-dataset equality check must confirm before real use).
+
 include { initOptions; getSoftwareName; getOutputDir } from './functions'
 include { isSingleFile } from './functions'
 
 params.options = [:]
 options        = initOptions(params.options)
-directory = getOutputDir('pairs_library')
+directory      = getOutputDir('pairs_library')
 
-ASSEMBLY_NAME = params['input'].genome.assembly_name // TODO: move to the parameters dictionary, and below:
+ASSEMBLY_NAME = params['input'].genome.assembly_name
 
-
-process MERGE_DEDUP_SPLITBAM {
-    tag "library:${library} run:${run}"
+process MERGE_DEDUP_FINAL {
+    tag "library:${library}"
     label 'process_medium'
     publishDir "${directory}", mode: params.publish_dir_mode
 
     conda (params.enable_conda ? "bioconda::pairtools" : null)
-//        if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {
-//            container "https://depot.galaxyproject.org/singularity/mulled-v2-a97e90b3b802d1da3d6958e0867610c718cb5eb1:2880dd9d8ad0a7b221d4eacda9a818e92983128d-0"
-//        } else {
-//            container "quay.io/biocontainers/mulled-v2-a97e90b3b802d1da3d6958e0867610c718cb5eb1:2880dd9d8ad0a7b221d4eacda9a818e92983128d-0"
-//        }
 
     input:
-    tuple val(library), file(run_pairsam)
+    tuple val(library), file(group_pairsams)
 
     output:
     tuple val(library), path("${library}.${ASSEMBLY_NAME}.nodups.pairs.gz"),
@@ -37,15 +44,14 @@ process MERGE_DEDUP_SPLITBAM {
 
     path  "*.version.txt"         , emit: version
 
-
     script:
     def software = getSoftwareName(task.process)
-
     def make_pairsam = params['parse'].get('make_pairsam','false').toBoolean()
+    // group_pairsams is always >1 in normal use (N groups), but guard anyway:
     def merge_command = (
-        isSingleFile(run_pairsam) ?
-        "${decompress_command} ${run_pairsam}" :
-        "pairtools merge ${run_pairsam} --nproc ${task.cpus} --tmpdir \$TASK_TMP_DIR"
+        isSingleFile(group_pairsams) ?
+        "bgzip -cd -@ 3 ${group_pairsams}" :
+        "pairtools merge ${group_pairsams} --nproc ${task.cpus} --tmpdir \$TASK_TMP_DIR"
     )
 
     if(make_pairsam)
@@ -78,9 +84,7 @@ process MERGE_DEDUP_SPLITBAM {
         rm -rf \$TASK_TMP_DIR
         pairix ${library}.${ASSEMBLY_NAME}.nodups.pairs.gz
 
-
         pairtools --version > ${software}.version.txt
-
         """
     else
         """
@@ -105,8 +109,5 @@ process MERGE_DEDUP_SPLITBAM {
         pairix ${library}.${ASSEMBLY_NAME}.nodups.pairs.gz
 
         pairtools --version > ${software}.version.txt
-
         """
-
 }
-

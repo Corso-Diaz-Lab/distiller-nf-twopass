@@ -5,6 +5,14 @@
 # but nonetheless user must consider
 # carefully every presented option
 #########################################
+#
+# TWO-PASS FORK NOTE:
+# This test config runs the bundled sacCer3 (yeast) test data through the
+# two-pass restructured pipeline. Relative to upstream it adds:
+#   - parse.parsing_options: '--walks-policy 5unique' (rescues junction reads)
+#   - n_sort_groups: 2      (exercises the parallel sort_group/dedup_group path)
+# Everything else is unchanged from the upstream test template.
+#########################################
 
 
 
@@ -97,13 +105,13 @@ map:
 
     # Specify extra BWA mapping options.
     mapping_options: '-v 3'
-   
+
     # Specify fastp trim options.
     #i.e. parameters
     #--detect_adapter_for_pe -q 15.
     trim_options: '-q 20 --json /dev/null'
 
-    # A more technical option, use a custom script to split fastq files from SRA 
+    # A more technical option, use a custom script to split fastq files from SRA
     # into two files, one per read side. By default it is true, which is
     # faster (because we can use multi-threaded compression), but less
     # stable. Set to false if you download files from SRA and bwa complains
@@ -144,7 +152,10 @@ parse:
     # flags 'make_pairsam', 'drop_readid', 'drop_seq'. The default value
     # enables storing MAPQ scores in the .pairsam/.pairs output, which are
     # used later for filtering/binning.
-    parsing_options: '--add-columns mapq'
+    # TWO-PASS FORK: '--walks-policy 5unique' added. The upstream default
+    # ('mask') assigns junction-spanning reads to the "WW" category and discards
+    # them, losing ~25% of valid pairs on MboI data. 5unique rescues them.
+    parsing_options: '--add-columns mapq --walks-policy 5unique'
 
 # Control how PCR/optical duplicates are detected in the data.
 dedup:
@@ -153,6 +164,13 @@ dedup:
     # mapped locations on either side for two pairs to be still considered as
     # duplicates.
     max_mismatch_bp: 3
+
+# TWO-PASS FORK: number of parallel sort/dedup groups. The mapped chunks are
+# partitioned into this many groups, each sorted and deduplicated in parallel
+# (sort_group + dedup_group) before a single final cross-group dedup
+# (merge_dedup_final). 2 is enough to exercise the restructured path on the
+# small test data; production runs use more (see project.example.yml).
+n_sort_groups: 2
 
 # Control how Hi-C pairs are binned into contact maps, stored in .cool files.
 bin:
