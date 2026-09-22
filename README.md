@@ -1,4 +1,4 @@
-#distiller-nf (two-pass merge/dedup restructuring)
+# distiller-nf (two-pass merge/dedup restructuring)
 
 This repo is a derivative work based on the open2c/distiller-nf Hi-C mapping pipeline. We restructured the monolithic merge_deduplication stage of open2c/distiller-nf into a parallel 'split-apply-combine' design, enabling the pipeline to complete very deeply sequenced Hi-C libraries (Dyer) which do not finish merging and deduplication within cluster wall-time limits using the original single-process stage.
 
