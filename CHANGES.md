@@ -54,6 +54,14 @@ filled the 1 TB quota and killed the Nextflow head job. These files are
 intermediates read from the work directory by the next step, so `publishDir`
 is now disabled in both modules. Published final outputs are unchanged.
 
+### Bug fix: `merge_dedup_final` missing long QoS in `configs/cluster.config`
+
+The 4d/6d walltime exceeds the 48 h cap of Sherlocks standard QoS, so the
+job was rejected. Added `--qos=long` to this process only; `sort_group` and
+`dedup_group` stay on the standard QoS, since `long` enforces a 48 h minimum
+walltime and would reject them.
+
+
 ## v1.0.0 (2026-09-21)
 
 ### Restructured: merge/deduplication stage
