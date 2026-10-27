@@ -42,6 +42,18 @@ A major update of the pipeline and the config syntax.
 This document records exactly what differs from the upstream pipeline, so the
 derivative nature is transparent and auditable.
 
+## Unreleased
+
+### Bug fix: intermediate group files were published to the launch directory
+
+`sort_group` and `dedup_group` declared `publishDir "${directory}"` with a
+relative directory, so every run copied all sorted and deduplicated group
+pairsams into the directory Nextflow was launched from (~660 GB for a
+10-library run). On Sherlock that directory is on `$GROUP_HOME`; the copies
+filled the 1 TB quota and killed the Nextflow head job. These files are
+intermediates read from the work directory by the next step, so `publishDir`
+is now disabled in both modules. Published final outputs are unchanged.
+
 ## v1.0.0 (2026-09-21)
 
 ### Restructured: merge/deduplication stage

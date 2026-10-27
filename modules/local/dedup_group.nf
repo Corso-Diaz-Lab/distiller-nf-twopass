@@ -27,7 +27,7 @@ ASSEMBLY_NAME = params['input'].genome.assembly_name
 process DEDUP_GROUP {
     tag "library:${library} group:${group_id}"
     label 'process_medium'
-    publishDir "${directory}", mode: params.publish_dir_mode
+    // publishDir "${directory}", mode: params.publish_dir_mode
 
     conda (params.enable_conda ? "bioconda::pairtools" : null)
 
