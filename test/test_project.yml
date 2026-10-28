@@ -101,7 +101,7 @@ map:
     # The optimal chunk size is defined by the balance between mapping and merging.
     # Smaller chunks (~30M) are better for clusters with many weak nodes,
     # however, having >~10 chunks per run slow down merging.
-    # chunksize: 6000
+    chunksize: 6000
 
     # Specify extra BWA mapping options.
     mapping_options: '-v 3'

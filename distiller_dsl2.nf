@@ -114,9 +114,12 @@ workflow DISTILLER {
             .map{ lib, run, chunk, pairsam, bam -> [lib, pairsam] }
             .groupTuple()
             .flatMap { lib, pairsams ->
+                // TWO-PASS FORK: sort by file name so group membership is
+                // identical on every run/resume (groupTuple order = arrival order)
+                def ordered = pairsams.sort(false) { it.name }
                 def n = Math.max(1, N_GROUPS)
-                def sz = (Math.ceil((pairsams.size() as double) / n) as int)
-                pairsams.collate(sz).withIndex().collect { grp, i ->
+                def sz = (Math.ceil((ordered.size() as double) / n) as int)
+                ordered.collate(sz).withIndex().collect { grp, i ->
                     tuple(lib, i, grp)
                 }
             }
@@ -128,7 +131,11 @@ workflow DISTILLER {
 // (lib, deduped)
 
 // 3. regroup a library's sorted-group outputs, single global dedup
-    FINAL_DEDUP_INPUT = DEDUPED_GROUPS.groupTuple() // (lib, [deduped...])
+    FINAL_DEDUP_INPUT = DEDUPED_GROUPS
+            .groupTuple()
+            // TWO-PASS FORK: fixed group order -> stable cache hash and a
+            // deterministic header under --keep-first-header (group0 first)
+            .map { lib, deduped -> [lib, deduped.sort(false) { it.name }] }   // (lib, [deduped...])
     PAIRS = merge_dedup_final( FINAL_DEDUP_INPUT )
 
 //    /* Produce stats with filters: */

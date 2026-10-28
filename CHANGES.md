@@ -44,6 +44,17 @@ derivative nature is transparent and auditable.
 
 ## Unreleased
 
+### Bug fix: sort/dedup groups changed between resumes
+
+Chunks were assigned to sort groups in arrival order (`groupTuple()` then
+`collate`), which differs between a live run and a resume, so most
+`sort_group`/`dedup_group` tasks re-ran on every `-resume` (~70 extra CPU-hours
+on a 10-library run). Chunk lists are now sorted by file name before grouping,
+and `merge_dedup_final` receives its group files in sorted order, so group
+membership, task hashes and the kept header are identical across runs. The
+bundled test now sets `chunksize: 6000` so libraries span multiple chunks and
+this path is exercised; a test run + `-resume` on it reports all 55 tasks cached.
+
 ### Bug fix: `merge_dedup_final` crashed on mixed chromosome-order headers
 
 `pairtools merge` of two or more files rewrites the `#chromsize` order
