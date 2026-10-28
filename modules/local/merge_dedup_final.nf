@@ -51,7 +51,7 @@ process MERGE_DEDUP_FINAL {
     def merge_command = (
         isSingleFile(group_pairsams) ?
         "bgzip -cd -@ 3 ${group_pairsams}" :
-        "pairtools merge ${group_pairsams} --nproc ${task.cpus} --tmpdir \$TASK_TMP_DIR"
+        "pairtools merge --keep-first-header ${group_pairsams} --nproc ${task.cpus} --tmpdir \$TASK_TMP_DIR"
     )
 
     if(make_pairsam)

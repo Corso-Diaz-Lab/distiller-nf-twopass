@@ -44,6 +44,17 @@ derivative nature is transparent and auditable.
 
 ## Unreleased
 
+### Bug fix: `merge_dedup_final` crashed on mixed chromosome-order headers
+
+`pairtools merge` of two or more files rewrites the `#chromsize` order
+alphabetically (1, 10…19, 2…9, MT, X, Y), while a group built from a single
+chunk keeps the original numeric order. A library whose chunk count leaves a
+single chunk in its last group therefore produced groups with conflicting
+header orders, and the final merge failed with `ValueError: Circular
+dependencies exist`. `merge_dedup_final` now uses `pairtools merge
+--keep-first-header`. Pair sort order is unaffected, and downstream binning
+takes chromosome sizes from the genome's chrom.sizes file, not the pairs header.
+
 ### Bug fix: intermediate group files were published to the launch directory
 
 `sort_group` and `dedup_group` declared `publishDir "${directory}"` with a
